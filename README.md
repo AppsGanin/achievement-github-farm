@@ -137,9 +137,10 @@
 
 1. [Форкни это репо](../../fork) себе — кнопка **Fork** в правом верхнем углу
 2. В своём форке открой любой файл (например `README.md`) → карандашик ✏️ → добавь пробел → прокрути вниз
-3. Выбери **"Create a new branch"** → нажми **Propose changes**
-4. Нажми **Create pull request**
-5. На странице PR нажми **Merge pull request** → **Confirm merge**
+3. Нажми кнопку **Commit changes...**
+4. Во всплывающем окне выбери **"Create a new branch for this commit and start a pull request"** → нажми **Propose changes**
+5. Нажми **Create pull request**
+6. На странице PR нажми **Merge pull request** → **Confirm merge**
 
 Ачивка появится через несколько минут. Разовая.
 
