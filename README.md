@@ -334,4 +334,4 @@ commit_message: `Co-authored-by: 12345678+john@users.noreply.github.com`,
 
 <img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=6,11,20&height=100&section=footer" width="100%"/>
 
-</div>
+</div> 
