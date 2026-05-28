@@ -170,4 +170,7 @@ jobs:
               const url = result.createDiscussion.discussion.url;
               console.log(`✅ Создан вопрос #${result.createDiscussion.discussion.number}: ${url}`);
               console.log(`   Правильный ответ: ${correct}`);
+
+              // Пауза между запросами, чтобы не упереться в rate limit
+              await new Promise(resolve => setTimeout(resolve, 1000));
             }
