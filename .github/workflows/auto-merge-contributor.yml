@@ -1,0 +1,125 @@
+name: Auto-merge contributor PRs (Pull Shark 🦈)
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+    paths:
+      - "contributors/**"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  validate-and-merge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get changed files
+        id: files
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+            });
+            return files;
+
+      - name: Validate PR
+        id: validate
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const files = ${{ steps.files.outputs.result }};
+            const author = context.payload.pull_request.user.login.toLowerCase();
+
+            // Разрешаем только файлы в contributors/ (не README.md)
+            const forbidden = files.filter(f =>
+              !f.filename.startsWith('contributors/') ||
+              f.filename === 'contributors/README.md' ||
+              f.filename === 'contributors/example-contributor.md'
+            );
+            if (forbidden.length > 0) {
+              core.setFailed(`PR содержит файлы вне папки contributors/: ${forbidden.map(f => f.filename).join(', ')}`);
+              return false;
+            }
+
+            // Разрешаем только добавление или изменение файлов (не удаление)
+            const deleted = files.filter(f => f.status === 'removed');
+            if (deleted.length > 0) {
+              core.setFailed(`PR удаляет файлы: ${deleted.map(f => f.filename).join(', ')}`);
+              return false;
+            }
+
+            // Файл должен называться contributors/USERNAME.md или contributors/USERNAME-N.md
+            const validPattern = new RegExp(`^contributors/${author}(-\\d+)?\\.md$`, 'i');
+            const invalidFiles = files.filter(f => !validPattern.test(f.filename));
+            if (invalidFiles.length > 0) {
+              core.setFailed(`Имя файла должно быть contributors/${author}.md (или ${author}-2.md и т.д.): ${invalidFiles.map(f => f.filename).join(', ')}`);
+              return false;
+            }
+
+            // Файл не должен быть больше 10 КБ
+            const MAX_SIZE = 10 * 1024;
+            for (const file of files) {
+              try {
+                const { data } = await github.rest.repos.getContent({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  path: file.filename,
+                  ref: context.payload.pull_request.head.sha,
+                });
+                if (data.size > MAX_SIZE) {
+                  core.setFailed(`Файл ${file.filename} слишком большой: ${data.size} байт (макс. ${MAX_SIZE})`);
+                  return false;
+                }
+              } catch (e) {
+                // файл новый или недоступен — пропускаем
+              }
+            }
+
+            core.setOutput('valid', 'true');
+            return true;
+
+      - name: Comment on PR
+        if: steps.validate.outputs.valid == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const author = context.payload.pull_request.user.login;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: `👋 @${author}, спасибо за PR!\n\n✅ Проверка прошла — мёрджим автоматически...\n\nПосле мёрджа на твоём профиле появится **Pull Shark 🦈** — за смёрдженный PR.\n\n> 🤝 Хочешь ещё **Pair Extraordinaire 👥**? Открой PR в папку \`pairs/\` — там отдельный процесс с co-authored коммитом!\n\n*(иногда с задержкой до нескольких часов)*`
+            });
+
+      - name: Enable auto-merge
+        if: steps.validate.outputs.valid == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.pulls.merge({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+              merge_method: 'squash',
+              commit_title: `feat: add contributor @${context.payload.pull_request.user.login}`,
+              commit_message: ``,
+            });
+            console.log('PR merged successfully');
+
+      - name: Comment on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const author = context.payload.pull_request.user.login;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: `❌ @${author}, авто-мёрдж не прошёл валидацию.\n\nПроверь:\n- Файл должен быть в папке \`contributors/\`\n- Имя файла: \`contributors/${author}.md\` или \`contributors/${author}-2.md\` и т.д.\n- PR не должен удалять файлы\n\nИсправь и обнови PR!`
+            });

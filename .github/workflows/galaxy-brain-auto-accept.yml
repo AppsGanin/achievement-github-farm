@@ -1,0 +1,129 @@
+name: Galaxy Brain — auto-accept answers 🧠
+
+on:
+  discussion_comment:
+    types: [created]
+
+permissions:
+  discussions: write
+
+jobs:
+  accept-answer:
+    runs-on: ubuntu-latest
+    # Запускаем только для Q&A категории
+    if: github.event.discussion.category.name == 'Q&A'
+    steps:
+      - name: Check if discussion already has accepted answer
+        id: check
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.BOT_TOKEN }}
+          script: |
+            const query = `
+              query($owner: String!, $repo: String!, $number: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  discussion(number: $number) {
+                    answer { id }
+                    author { login }
+                    body
+                  }
+                }
+              }
+            `;
+            const result = await github.graphql(query, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              number: context.payload.discussion.number,
+            });
+
+            const discussion = result.repository.discussion;
+
+            // Уже есть принятый ответ — пропускаем
+            if (discussion.answer) {
+              console.log('Вопрос уже имеет принятый ответ, пропускаем.');
+              core.setOutput('should_accept', 'false');
+              return;
+            }
+
+            const commentAuthor = context.payload.comment.user.login;
+            const discussionAuthor = discussion.author.login;
+
+            // Нельзя принять собственный ответ
+            if (commentAuthor === discussionAuthor) {
+              console.log(`Комментарий от автора вопроса (${commentAuthor}), пропускаем.`);
+              core.setOutput('should_accept', 'false');
+              return;
+            }
+
+            // Не принимаем ответы от ботов
+            if (commentAuthor.includes('[bot]') || commentAuthor.endsWith('-bot')) {
+              console.log(`Комментарий от бота (${commentAuthor}), пропускаем.`);
+              core.setOutput('should_accept', 'false');
+              return;
+            }
+
+            // Проверяем правильный ответ из <!-- ANSWER: ... --> в теле discussion
+            const answerMatch = discussion.body.match(/<!--\s*ANSWER:\s*(.+?)\s*-->/i);
+            if (answerMatch) {
+              const correctAnswer = answerMatch[1].trim().toLowerCase();
+              const commentBody = context.payload.comment.body.toLowerCase();
+              if (!commentBody.includes(correctAnswer)) {
+                console.log(`Неправильный ответ от @${commentAuthor}. Ожидалось: "${answerMatch[1]}"`);
+                core.setOutput('should_accept', 'false');
+                return;
+              }
+              console.log(`✅ Правильный ответ от @${commentAuthor}: "${answerMatch[1]}"`);
+            } else {
+              // Нет скрытого ответа — принимаем любой (старые вопросы)
+              console.log(`Нет ANSWER-тега, принимаем ответ от @${commentAuthor}`);
+            }
+
+            console.log(`Принимаем ответ от @${commentAuthor} на вопрос #${context.payload.discussion.number}`);
+            core.setOutput('should_accept', 'true');
+            core.setOutput('comment_id', context.payload.comment.node_id);
+            core.setOutput('commenter', commentAuthor);
+
+      - name: Mark comment as accepted answer
+        if: steps.check.outputs.should_accept == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.BOT_TOKEN }}
+          script: |
+            const commentId = '${{ steps.check.outputs.comment_id }}';
+            const commenter = '${{ steps.check.outputs.commenter }}';
+
+            const mutation = `
+              mutation($commentId: ID!) {
+                markDiscussionCommentAsAnswer(input: { id: $commentId }) {
+                  discussion { number url }
+                }
+              }
+            `;
+            const result = await github.graphql(mutation, { commentId });
+            const discussion = result.markDiscussionCommentAsAnswer.discussion;
+
+            console.log(`🧠 Ответ @${commenter} принят в discussion #${discussion.number}`);
+            console.log(`   URL: ${discussion.url}`);
+
+      - name: Congratulate the answerer
+        if: steps.check.outputs.should_accept == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.BOT_TOKEN }}
+          script: |
+            const commenter = '${{ steps.check.outputs.commenter }}';
+
+            // reactions на discussion comments работают только через GraphQL
+            const mutation = `
+              mutation($subjectId: ID!, $content: ReactionContent!) {
+                addReaction(input: { subjectId: $subjectId, content: $content }) {
+                  reaction { content }
+                }
+              }
+            `;
+            await github.graphql(mutation, {
+              subjectId: context.payload.comment.node_id,
+              content: 'HOORAY',
+            }).catch(() => {});
+
+            console.log(`🎉 @${commenter} получит ачивку Galaxy Brain 🧠`);

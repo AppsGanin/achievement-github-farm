@@ -1,0 +1,173 @@
+name: Galaxy Brain — create Q&A discussions 🧠
+
+on:
+  # Запускать по расписанию — раз в день создаёт 10 вопросов
+  schedule:
+    - cron: "0 9 * * *"
+    - cron: "0 15 * * *"
+    - cron: "0 21 * * *"
+  # Или вручную через Actions → Run workflow
+  workflow_dispatch:
+    inputs:
+      count:
+        description: "Сколько вопросов создать"
+        required: false
+        default: "10"
+
+permissions:
+  discussions: write
+
+jobs:
+  create-question:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get Q&A category ID
+        id: category
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.BOT_TOKEN }}
+          script: |
+            const query = `
+              query($owner: String!, $repo: String!) {
+                repository(owner: $owner, name: $repo) {
+                  discussionCategories(first: 20) {
+                    nodes { id name }
+                  }
+                }
+              }
+            `;
+            const result = await github.graphql(query, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+            const categories = result.repository.discussionCategories.nodes;
+            const qa = categories.find(c => c.name === 'Q&A');
+            if (!qa) {
+              core.setFailed('Категория Q&A не найдена. Включи Discussions и создай категорию Q&A в настройках репо.');
+              return;
+            }
+            core.setOutput('category_id', qa.id);
+            console.log('Q&A category ID:', qa.id);
+
+      - name: Get repository ID
+        id: repoid
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.BOT_TOKEN }}
+          script: |
+            const query = `
+              query($owner: String!, $repo: String!) {
+                repository(owner: $owner, name: $repo) { id }
+              }
+            `;
+            const result = await github.graphql(query, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+            core.setOutput('repo_id', result.repository.id);
+
+      - name: Check for unanswered questions
+        id: check
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.BOT_TOKEN }}
+          script: |
+            const categoryId = '${{ steps.category.outputs.category_id }}';
+            const query = `
+              query($owner: String!, $repo: String!, $categoryId: ID!) {
+                repository(owner: $owner, name: $repo) {
+                  discussions(first: 1, categoryId: $categoryId, answered: false) {
+                    totalCount
+                  }
+                }
+              }
+            `;
+            const result = await github.graphql(query, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              categoryId: categoryId,
+            });
+            const count = result.repository.discussions.totalCount;
+            console.log(`Неотвеченных вопросов: ${count}`);
+            core.setOutput('unanswered_count', count);
+            if (count > 0) {
+              core.notice(`Пропускаем создание новых вопросов — есть ${count} неотвеченных.`);
+            }
+
+      - name: Create Q&A discussion
+        if: steps.check.outputs.unanswered_count == '0'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.BOT_TOKEN }}
+          script: |
+            const categoryId = '${{ steps.category.outputs.category_id }}';
+            const repoId = '${{ steps.repoid.outputs.repo_id }}';
+            const count = parseInt('${{ github.event.inputs.count || 10 }}');
+
+            // Загружаем вопросы из Open Trivia DB (бесплатно, без ключа)
+            // Категория 18 = Science: Computers, difficulty=easy, type=multiple
+            const apiUrl = `https://opentdb.com/api.php?amount=${count}&category=18&difficulty=easy&type=multiple`;
+            const response = await fetch(apiUrl);
+            if (!response.ok) {
+              core.setFailed(`Open Trivia DB вернул ${response.status}`);
+              return;
+            }
+            const data = await response.json();
+            if (data.response_code !== 0 || !data.results.length) {
+              core.setFailed(`Open Trivia DB: неожиданный ответ (code=${data.response_code})`);
+              return;
+            }
+
+            // HTML entities decode
+            const decode = s => s
+              .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+              .replace(/&quot;/g, '"').replace(/&#039;/g, "'").replace(/&ldquo;/g, '"')
+              .replace(/&rdquo;/g, '"').replace(/&lsquo;/g, "'").replace(/&rsquo;/g, "'")
+              .replace(/&hellip;/g, '…').replace(/&ndash;/g, '–').replace(/&mdash;/g, '—');
+
+            const now = new Date();
+
+            for (let i = 0; i < data.results.length; i++) {
+              const q = data.results[i];
+              const question = decode(q.question);
+              const correct = decode(q.correct_answer);
+              const incorrect = q.incorrect_answers.map(decode);
+
+              // Перемешиваем варианты ответов
+              const options = [correct, ...incorrect].sort(() => Math.random() - 0.5);
+              const optionsList = options.map(o => `- ${o}`).join('\n');
+
+              const title = `${question} [${now.toISOString().slice(0, 10)}-${i + 1}]`;
+              const body = [
+                question,
+                '',
+                '**Варианты ответов:**',
+                optionsList,
+                '',
+                '> 🧠 **Напиши правильный ответ в комментарии** — бот автоматически проверит и отметит правильный ответ!',
+                '',
+                `<!-- ANSWER: ${correct} -->`,
+              ].join('\n');
+
+              const mutation = `
+                mutation($repoId: ID!, $categoryId: ID!, $title: String!, $body: String!) {
+                  createDiscussion(input: {
+                    repositoryId: $repoId
+                    categoryId: $categoryId
+                    title: $title
+                    body: $body
+                  }) {
+                    discussion { url number }
+                  }
+                }
+              `;
+              const result = await github.graphql(mutation, {
+                repoId: repoId,
+                categoryId: categoryId,
+                title: title,
+                body: body,
+              });
+              const url = result.createDiscussion.discussion.url;
+              console.log(`✅ Создан вопрос #${result.createDiscussion.discussion.number}: ${url}`);
+              console.log(`   Правильный ответ: ${correct}`);
+            }

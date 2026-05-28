@@ -1,0 +1,40 @@
+name: Setup — create labels
+
+on:
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  create-labels:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create quickdraw label
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const labels = [
+              { name: 'quickdraw', color: 'fbca04', description: '⚡ Quickdraw achievement farm' },
+              { name: 'pull-shark', color: '0075ca', description: '🦈 Pull Shark achievement farm' },
+              { name: 'pair-extraordinaire', color: '6f42c1', description: '👥 Pair Extraordinaire achievement farm' },
+            ];
+
+            for (const label of labels) {
+              try {
+                await github.rest.issues.createLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name: label.name,
+                  color: label.color,
+                  description: label.description,
+                });
+                console.log(`✅ Лейбл '${label.name}' создан`);
+              } catch (e) {
+                if (e.status === 422) {
+                  console.log(`ℹ️  Лейбл '${label.name}' уже существует`);
+                } else {
+                  throw e;
+                }
+              }
+            }
