@@ -330,7 +330,7 @@ commit_message: `Co-authored-by: 12345678+john@users.noreply.github.com`,
 
 **Понравился проект? Поставь ⭐ — это помогает другим найти репо и получить ачивки!**
 
-[![Star this repo](https://img.shields.io/badge/⭐_Поставить_звезду-yellow?style=for-the-badge&logo=github&logoColor=black)](../../stargazers)
+[![Star this repo](https://img.shields.io/badge/⭐_Поставить_звезду-yellow?style=for-the-badge&logo=github&logoColor=black)](../../)
 
 <img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=6,11,20&height=100&section=footer" width="100%"/>
 
