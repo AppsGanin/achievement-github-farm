@@ -1,8 +1,1 @@
-# example-contributor
-
-> 👋 Привет! Это пример файла. Создай свой: `ВАШ_USERNAME.md`
-
-Содержимое файла может быть любым — напиши что угодно.
-Можно скопировать этот шаблон и заменить данные на свои.
-
----
+IyBleGFtcGxlLWNvbnRyaWJ1dG9yCgo+IPCfkacg0J/RgNC40LLQtdGCISDQrdGC0L4g0L/RgNC40LzQtdGAINGE0LDQudC70LAuINCh0L7Qt9C00LDQuSDRgdCy0L7QuTogYNCR0JDQqF9VWUVSX05BTUUubWRgCgrigJQKCg==
