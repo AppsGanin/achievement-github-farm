@@ -135,23 +135,14 @@
 
 > ⚠️ Нужно твоё **собственное** репо (не чужой форк) — GitHub засчитывает YOLO только владельцу репо.
 >
-> ⚠️ GitHub требует, чтобы PR **ожидал ревью** — без reviewer-а ачивка не засчитывается.
-
-**Шаг 0 — включи обязательное ревью в своём форке (один раз):**
+> ⚠️ GitHub требует, чтобы PR **ожидал ревью** — без reviewer-а ачивка не засчитывается. Используй **Copilot** как reviewer — работает без второго аккаунта.
 
 1. [Форкни это репо](../../fork) себе
-2. В форке перейди **Settings → Branches → Add branch protection rule**
-3. В поле **Branch name pattern** введи `main`
-4. Поставь галочку **Require a pull request before merging** → **Require approvals** (1)
-5. Нажми **Create**
-
-**Шаг 1 — создай и смёрдж PR:**
-
-6. Открой любой файл (например `README.md`) → карандашик ✏️ → добавь пробел → прокрути вниз
-7. Нажми **Commit changes...** → выбери **"Create a new branch..."** → **Propose changes**
-8. Нажми **Create pull request**
-9. На странице PR появится блокировка «Review required» — нажми **Merge without waiting for requirements to be met (administrators only)**
-10. **Confirm merge**
+2. Открой любой файл (например `README.md`) → карандашик ✏️ → добавь пробел → прокрути вниз
+3. Нажми **Commit changes...** → выбери **"Create a new branch..."** → **Propose changes**
+4. Нажми **Create pull request**
+5. В правой панели PR → **Reviewers** → введи `Copilot` → выбери его
+6. Нажми **Merge pull request** → **Confirm merge** (не жди ревью)
 
 Ачивка появится через несколько минут. Разовая.
 
@@ -346,4 +337,4 @@ commit_message: `Co-authored-by: 12345678+john@users.noreply.github.com`,
 
 <img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=6,11,20&height=100&section=footer" width="100%"/>
 
-</div> 
+</div>
