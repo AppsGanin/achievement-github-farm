@@ -88,7 +88,7 @@
 </details>
 
 <details>
-<summary><b> Galaxy Brain</b> — отвечай на вопросы в Discussions</summary>
+<summary><b>🧠 Galaxy Brain</b> — отвечай на вопросы в Discussions</summary>
 
 <br>
 
